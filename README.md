@@ -61,7 +61,7 @@ After a run, an LLM (or a person) reads the residual and writes decisions as pla
 - no id appears in more than one override;
 - `reason` is non-empty text.
 
-An unknown id is an error, not a warning, so when the bag changes a stale override is removed on purpose instead of being skipped silently.
+Other fields are ignored. An unknown id is an error, not a warning, so when the bag changes a stale override is removed on purpose instead of being skipped silently.
 
 **Application.** Overrides compile into the same algebra:
 
