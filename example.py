@@ -7,7 +7,7 @@ cash book. Run the rules, read the residual, apply overrides.json, run again.
 import json
 from pathlib import Path
 
-from recon import accept_if, check_partition, one_group, pairs, partition_by, seq, with_overrides
+from recon import accept_if, check_partition, fixed_point, one_group, pairs, partition_by, seq, with_overrides
 
 FIELDS = ("id", "side", "date", "amount", "ref", "party", "memo")
 BAG = [dict(zip(FIELDS, row)) for row in [
@@ -17,6 +17,7 @@ BAG = [dict(zip(FIELDS, row)) for row in [
     ("b4", "bank", "2025-03-26", 500, None, "Alder", "ALDER INV120 PMT"),
     ("b5", "bank", "2025-03-28", 75, None, None, "TRANSFER 88412"),
     ("b6", "bank", "2025-03-31", -15, None, None, "ACCOUNT FEE MAR"),
+    ("b7", "bank", "2025-03-31", 250, None, "Rowan", "ROWAN INV127 PMT"),
     ("k1", "book", "2025-03-02", 1200, "INV-101", "Larch", "Receipt Larch INV-101"),
     ("k2", "book", "2025-03-08", 1000, "DEP-31", "Larch", "Receipt Larch INV-104, deposit 31"),
     ("k3", "book", "2025-03-08", 500, "DEP-31", "Sorrel", "Receipt Sorrel INV-125, deposit 31"),
@@ -24,6 +25,7 @@ BAG = [dict(zip(FIELDS, row)) for row in [
     ("k5", "book", "2025-03-24", 500, "INV-120", "Alder", "Receipt Alder INV-120"),
     ("k6", "book", "2025-03-19", 2430, "INV-130", "Sorrel", "Receipt Sorrel INV-130"),
     ("k7", "book", "2025-03-30", -1200, "CHQ-1047", "Hawthorn", "Cheque 1047 to Hawthorn Haulage"),
+    ("k8", "book", "2025-03-10", 250, "DEP-31", "Rowan", "Receipt Rowan INV-127, deposit 31"),
 ]]
 
 
@@ -44,11 +46,12 @@ def party(e):
     return e["party"]
 
 
-rules = seq(
+one_pass = seq(
     partition_by(ref, pairs("same ref", signed)),
     partition_by(ref, accept_if(nets_to_zero, one_group("same ref, nets to zero"))),
     partition_by(party, pairs("same party and amount", signed)),
 )
+rules = fixed_point(one_pass)
 
 
 def show(title, groups, residual, overrides=()):
@@ -62,6 +65,8 @@ def show(title, groups, residual, overrides=()):
         print("   ", json.dumps({**e, "held": held[e["id"]]} if e["id"] in held else e))
     print()
 
+
+assert {"b2", "k2", "k3"} <= {e["id"] for e in one_pass(BAG)[1]}, "one pass should leave deposit 31 open"
 
 groups, residual = rules(BAG)
 check_partition(BAG, groups, residual)

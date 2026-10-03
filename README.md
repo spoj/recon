@@ -28,6 +28,7 @@ A **strategy** is a function `bag -> (groups, residual)` that keeps the invarian
 - `when(pred, s)`: `s` sees only the entries that satisfy `pred`; the rest pass through.
 - `partition_by(key, s)`: `s` runs separately on each set of entries that share a key; entries whose key is null pass through.
 - `accept_if(pred, s)`: keep the groups of `s` whose members satisfy `pred`; the others dissolve whole back into the residual.
+- `fixed_point(s)`: run `s` again on what it left, until a pass groups nothing. Use it when one rule's groups unblock another, such as a bucket that fails acceptance until a later rule takes out a stray entry. Each pass that groups anything shrinks the residual, so it stops.
 
 **Acceptance** is a plain predicate over a group's members, such as "signed amounts sum to zero" or `abs(net) <= 1`. There is no tolerance type; write the inequality.
 
@@ -104,6 +105,7 @@ One bank account for one month, synthetic ([`example.py`](example.py)). Both sid
 | b4 | bank | 2025-03-26 | 500 | | Alder | ALDER INV120 PMT |
 | b5 | bank | 2025-03-28 | 75 | | | TRANSFER 88412 |
 | b6 | bank | 2025-03-31 | -15 | | | ACCOUNT FEE MAR |
+| b7 | bank | 2025-03-31 | 250 | | Rowan | ROWAN INV127 PMT |
 | k1 | book | 2025-03-02 | 1200 | INV-101 | Larch | Receipt Larch INV-101 |
 | k2 | book | 2025-03-08 | 1000 | DEP-31 | Larch | Receipt Larch INV-104, deposit 31 |
 | k3 | book | 2025-03-08 | 500 | DEP-31 | Sorrel | Receipt Sorrel INV-125, deposit 31 |
@@ -111,6 +113,7 @@ One bank account for one month, synthetic ([`example.py`](example.py)). Both sid
 | k5 | book | 2025-03-24 | 500 | INV-120 | Alder | Receipt Alder INV-120 |
 | k6 | book | 2025-03-19 | 2430 | INV-130 | Sorrel | Receipt Sorrel INV-130 |
 | k7 | book | 2025-03-30 | -1200 | CHQ-1047 | Hawthorn | Cheque 1047 to Hawthorn Haulage |
+| k8 | book | 2025-03-10 | 250 | DEP-31 | Rowan | Receipt Rowan INV-127, deposit 31 |
 
 ```python
 def signed(e):  # negate the cash book so that a settled group sums to zero
@@ -120,21 +123,24 @@ def nets_to_zero(members):
     return sum(map(signed, members)) == 0
 
 # ref(e) and party(e) return those fields; None (b4 has no ref) leaves an entry out
-rules = seq(
+rules = fixed_point(seq(
     partition_by(ref, pairs("same ref", signed)),
     partition_by(ref, accept_if(nets_to_zero, one_group("same ref, nets to zero"))),
     partition_by(party, pairs("same party and amount", signed)),
-)
+))
 ```
 
 Run 1, rules only:
 
 ```
 b1 k1     same ref                net     0
-b2 k2 k3  same ref, nets to zero  net     0
 b4 k4     same party and amount   net     0
+b7 k8     same party and amount   net     0
+b2 k2 k3  same ref, nets to zero  net     0
 residual: b3 b5 b6 k5 k6 k7
 ```
+
+Deposit 31 clears only on the second pass. k8, Rowan's receipt, was tagged to deposit 31 by mistake, so on the first pass the bucket nets to -250 and dissolves. The party rule then pairs k8 with Rowan's own transfer b7, and `fixed_point` runs the rules again on what is left. A single pass of the `seq` would leave b2, k2 and k3 open.
 
 Reading the residual: k5, Alder's INV-120 receipt, has no bank line. The bank line that pays it is b4 (`ALDER INV120 PMT`), which the weakest rule paired with k4, Alder's other receipt of 500. b3 and k6 are the same invoice with transposed digits, b6 is a fee, k7 is a cheque not yet presented, and b5 is unknown. The LLM writes [`overrides.json`](overrides.json): the two overrides above, plus
 
@@ -152,6 +158,7 @@ b3 k6     override                net   -90  both are INV-130; the cash book has
 b6        override                net   -15  March account fee, not yet in the cash book; book it
 k7        override                net  1200  cheque 1047 written 30 Mar, not yet presented at the bank
 b1 k1     same ref                net     0
+b7 k8     same party and amount   net     0
 b2 k2 k3  same ref, nets to zero  net     0
 residual: b5, k4 (held: INV-118 receipt booked 3 Mar has no bank credit this month; ...)
 ```
@@ -177,4 +184,4 @@ The bank is 670 above the cash book, and every unit of it now has a place: -90 k
 
 ## Where this comes from
 
-Distilled from [florecon](https://github.com/spoj/florecon), which also allocates costs; allocation is out of scope here. Kept: the invariant, the strategy type, `seq`, `when`, `partition_by`, `accept_if`, and two leaves (florecon's `exact_1to1` and `soak`). Overrides are new.
+Distilled from [florecon](https://github.com/spoj/florecon), which also allocates costs; allocation is out of scope here. Kept: the invariant, the strategy type, `seq`, `when`, `partition_by`, `accept_if`, `fixed_point`, and two leaves (florecon's `exact_1to1` and `soak`). Overrides are new.

@@ -102,6 +102,18 @@ def accept_if(pred, inner):
     return run
 
 
+def fixed_point(inner):
+    """Run inner again on what it left, until a pass groups nothing."""
+    def run(entries):
+        groups, rest = [], entries
+        while True:
+            found, left = inner(rest)
+            if len(left) == len(rest):
+                return groups, rest
+            groups, rest = groups + found, left
+    return run
+
+
 # Overrides are decisions, written as plain data after reading the residual:
 #   {"kind": "group", "ids": [...], "reason": "..."}  these entries form one group
 #   {"kind": "hold",  "ids": [...], "reason": "..."}  no rule may use these entries
