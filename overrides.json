@@ -1,0 +1,7 @@
+[
+  {"kind": "group", "ids": ["b4", "k5"], "reason": "bank memo 'ALDER INV120 PMT' names INV-120: b4 pays k5, not k4"},
+  {"kind": "hold", "ids": ["k4"], "reason": "INV-118 receipt booked 3 Mar has no bank credit this month; ask receivables whether it was paid"},
+  {"kind": "group", "ids": ["b3", "k6"], "reason": "both are INV-130; the cash book has 2430 where the bank received 2340 (transposed digits); correct the cash book"},
+  {"kind": "group", "ids": ["b6"], "reason": "March account fee, not yet in the cash book; book it"},
+  {"kind": "group", "ids": ["k7"], "reason": "cheque 1047 written 30 Mar, not yet presented at the bank"}
+]
