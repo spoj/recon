@@ -17,7 +17,7 @@ A reconciliation takes a bag of entries (bank lines, ledger lines, invoices, pay
 
 A **strategy** is a function `bag -> (groups, residual)` that keeps the invariant. Strategies are built from two kinds of parts.
 
-**Leaves** find groups. A leaf groups only entries it was given, uses each at most once, and returns the rest as its residual. It takes a name, which becomes the origin of its groups.
+**Leaves** find groups. A leaf groups only entries it was given, uses each at most once, and returns the rest as its residual. It takes a name, which becomes the origin of its groups. Inside, a leaf can use any technique, from key lookups to min-cost flow or other combinatorial search; [florecon](https://github.com/spoj/florecon) has examples.
 
 - `pairs(name, amount)`: pair each entry with the earliest unpaired entry of equal and opposite amount.
 - `one_group(name)`: put everything it is given into one group.
@@ -158,12 +158,10 @@ residual: b5, k4 (held: INV-118 receipt booked 3 Mar has no bank credit this mon
 
 The bank is 670 above the cash book, and every unit of it now has a place: -90 keying error, -15 fee, +1200 unpresented cheque, +75 unknown credit, -500 held receipt. Without the hold, the next unexplained 500 from Alder would be paired with k4 by the weakest rule, and both would drop out of sight.
 
-## Why composition and authored overrides beat search
-
-The alternative to narrow rules plus overrides is to search the residual for any combination that passes acceptance.
+## Why rules plus authored overrides
 
 - **The numbers underdetermine the answer.** Equal amounts recur, so several groupings often net to zero, and only one of them is what happened. b4 nets against k4 and k5 alike; only the memo says which. The deciding fact usually sits in a memo, a remittance advice or a conversation, which an LLM can read and cite.
-- **Every group says why it exists.** A rule's group carries the rule, and an override carries its reason. A group found by search can only say that the search chose it, so a reviewer has to redo the work to trust it.
+- **Every group says why it exists.** A rule's group carries the rule, and an override carries its reason, so a reviewer can check a group without redoing the work.
 - **A wrong match hides work.** The residual is the work list. Clearing two unrelated entries against each other shortens it by burying two problems. Narrow rules and `hold` keep it honest.
 - **Decisions are data.** Overrides are validated, diffed and reviewed like code, and they replay on every run while new entries are matched around them.
 - **The LLM reads only the long tail.** Rules settle the bulk cheaply. The LLM reads the residual and the weakest rules' groups, which is where judgment is needed.
@@ -179,4 +177,4 @@ The alternative to narrow rules plus overrides is to search the residual for any
 
 ## Where this comes from
 
-Distilled from [florecon](https://github.com/spoj/florecon), which also allocates costs; allocation is out of scope here. Kept: the invariant, the strategy type, `seq`, `when`, `partition_by`, `accept_if`, and two leaves (florecon's `exact_1to1` and `soak`). florecon also cleared the residual with min-cost flow. In the author's experience that did not work well in practice, so it is not here. Overrides are new.
+Distilled from [florecon](https://github.com/spoj/florecon), which also allocates costs; allocation is out of scope here. Kept: the invariant, the strategy type, `seq`, `when`, `partition_by`, `accept_if`, and two leaves (florecon's `exact_1to1` and `soak`). Overrides are new.
