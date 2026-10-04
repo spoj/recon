@@ -1,9 +1,3 @@
-"""The worked example from README.md: one month of a bank account against the
-cash book. Run the rules, read the residual, apply overrides.json, run again.
-
-    python3 example.py
-"""
-
 import json
 from pathlib import Path
 
@@ -30,7 +24,6 @@ BAG = [dict(zip(FIELDS, row)) for row in [
 
 
 def signed(e):
-    """Both sides record money in as positive; negate the cash book so a settled group sums to zero."""
     return e["amount"] if e["side"] == "bank" else -e["amount"]
 
 
@@ -78,6 +71,18 @@ groups, residual = with_overrides(overrides, rules)(BAG)
 check_partition(BAG, groups, residual)
 show("Run 2: with overrides.json", groups, residual, overrides)
 assert [e["id"] for e in residual] == ["b5", "k4"]
+
+held = {i for o in overrides if o["kind"] == "hold" for i in o["ids"]}
+kinds = {
+    "grouped by a rule": [e["id"] for g in groups if g.origin != "override" for e in g.members],
+    "grouped by an override": [e["id"] for g in groups if g.origin == "override" for e in g.members],
+    "held by an override": [e["id"] for e in residual if e["id"] in held],
+    "left over, no decision": [e["id"] for e in residual if e["id"] not in held],
+}
+for kind, ids in kinds.items():
+    print(f"{kind:<23} {' '.join(ids)}")
+print()
+assert all(kinds.values())
 
 in_groups, left = sum(signed(e) for g in groups for e in g.members), sum(map(signed, residual))
 assert in_groups + left == sum(map(signed, BAG))

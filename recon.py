@@ -1,14 +1,3 @@
-"""Reconciliation as composable partitioning, with authored overrides.
-
-Reference implementation of README.md: standard library only, read top to bottom.
-
-    entry     a dict with a unique, stable "id"; every other field is yours
-    group     members (entries), origin (the rule or decision that made it), reason
-    strategy  a function: entries -> (groups, residual)
-
-Invariant: every input entry lands in exactly one group or in the residual.
-"""
-
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 
@@ -21,7 +10,6 @@ class Group:
 
 
 def check_partition(entries, groups, residual):
-    """Fail unless every input entry is in exactly one group or in the residual."""
     ids = [e["id"] for e in entries]
     out = [e["id"] for g in groups for e in g.members] + [e["id"] for e in residual]
     assert len(set(ids)) == len(ids), "input ids are not unique"
@@ -30,16 +18,11 @@ def check_partition(entries, groups, residual):
 
 
 def unclaimed(entries, groups):
-    """The entries that no group claims, in input order."""
     claimed = {e["id"] for g in groups for e in g.members}
     return [e for e in entries if e["id"] not in claimed]
 
 
-# Leaves find groups among the entries they are given. The name is the origin.
-
-
 def pairs(name, amount):
-    """Pair each entry with the earliest unpaired entry of equal and opposite amount."""
     def run(entries):
         waiting, groups = defaultdict(list), []
         for e in entries:
@@ -53,18 +36,13 @@ def pairs(name, amount):
 
 
 def one_group(name):
-    """Put everything it is given into one group."""
     def run(entries):
         groups = [Group(list(entries), name)] if entries else []
         return groups, unclaimed(entries, groups)
     return run
 
 
-# Combinators build strategies from strategies.
-
-
 def seq(*steps):
-    """Run each step on what the earlier steps left."""
     def run(entries):
         groups, rest = [], entries
         for step in steps:
@@ -75,7 +53,6 @@ def seq(*steps):
 
 
 def when(pred, inner):
-    """Run inner on the entries that satisfy pred; the others pass through."""
     def run(entries):
         groups, _ = inner([e for e in entries if pred(e)])
         return groups, unclaimed(entries, groups)
@@ -83,7 +60,6 @@ def when(pred, inner):
 
 
 def partition_by(key, inner):
-    """Run inner separately on each set of entries sharing a key; key None passes through."""
     def run(entries):
         shards = defaultdict(list)
         for e in entries:
@@ -95,7 +71,6 @@ def partition_by(key, inner):
 
 
 def accept_if(pred, inner):
-    """Keep inner's groups whose members satisfy pred; the others dissolve whole."""
     def run(entries):
         groups = [g for g in inner(entries)[0] if pred(g.members)]
         return groups, unclaimed(entries, groups)
@@ -103,7 +78,6 @@ def accept_if(pred, inner):
 
 
 def fixed_point(inner):
-    """Run inner again on what it left, until a pass groups nothing."""
     def run(entries):
         groups, rest = [], entries
         while True:
@@ -114,13 +88,7 @@ def fixed_point(inner):
     return run
 
 
-# Overrides are decisions, written as plain data after reading the residual:
-#   {"kind": "group", "ids": [...], "reason": "..."}  these entries form one group
-#   {"kind": "hold",  "ids": [...], "reason": "..."}  no rule may use these entries
-
-
 def check_overrides(overrides, entries):
-    """Every problem with these overrides for these entries; empty means valid."""
     known, used, problems = {e["id"] for e in entries}, {}, []
     for n, o in enumerate(overrides):
         if o.get("kind") not in ("group", "hold"):
@@ -142,7 +110,6 @@ def check_overrides(overrides, entries):
 
 
 def authored(overrides):
-    """Leaf: one group per "group" override, with origin "override" and its reason."""
     def run(entries):
         by_id = {e["id"]: e for e in entries}
         groups = [Group([by_id[i] for i in o["ids"]], "override", o["reason"])
@@ -152,7 +119,6 @@ def authored(overrides):
 
 
 def with_overrides(overrides, strategy):
-    """Validate, then run seq(authored(overrides), when(not held, strategy))."""
     def run(entries):
         problems = check_overrides(overrides, entries)
         if problems:
